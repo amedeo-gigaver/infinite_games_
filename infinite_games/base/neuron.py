@@ -20,13 +20,13 @@ from abc import ABC, abstractmethod
 
 import bittensor as bt
 
-from infinite_games import __spec_version__ as spec_version
+from infinite_games import __deprecated_spec_version__
 
 # Sync calls set weights and also resyncs the metagraph.
 from infinite_games.utils.config import add_args, check_config, config
 from infinite_games.utils.misc import ttl_get_block
 
-bt.logging.info(f"Subnet weight version:  {spec_version}")
+bt.logging.info(f"Subnet weight version:  {__deprecated_spec_version__}")
 
 
 def get_wallet(config: "bt.Config"):
@@ -59,7 +59,7 @@ class BaseNeuron(ABC):
     subtensor: "bt.subtensor"
     wallet: "bt.wallet"
     metagraph: "bt.metagraph"
-    spec_version: int = spec_version
+    spec_version: int = __deprecated_spec_version__
 
     @property
     def block(self):

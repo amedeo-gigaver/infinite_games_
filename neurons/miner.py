@@ -1,6 +1,20 @@
 # The MIT License (MIT)
 # Copyright © 2023 Yuma Rao
+
+# -- DO NOT TOUCH BELOW - ENV SET --
+# flake8: noqa: E402
 import os
+import sys
+
+# Force torch - must be set before importing bittensor
+os.environ["USE_TORCH"] = "1"
+
+# Add the parent directory of the script to PYTHONPATH
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(script_dir)
+sys.path.append(parent_dir)
+# -- DO NOT TOUCH ABOVE --
+
 import random
 import time
 import typing
@@ -35,7 +49,7 @@ from infinite_games.utils.miner_cache import (
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-
+VAL_MIN_STAKE = 10000
 DEV_MINER_UID = 93
 
 if os.getenv("OPENAI_KEY"):
@@ -217,14 +231,40 @@ class Miner(BaseMinerNeuron):
 
         Otherwise, allow the request to be processed further.
         """
-        # TODO(developer): Define how miners should blacklist requests.
-        if synapse.dendrite.hotkey not in self.metagraph.hotkeys:
-            # Ignore requests from unrecognized entities.
-            bt.logging.debug(f"Blacklisting unrecognized hotkey {synapse.dendrite.hotkey}")
-            return True, "Unrecognized hotkey"
+        try:
+            if self.subtensor.network in ["test", "mock", "local"]:
+                return False, "Blacklisting disabled in testnet"
 
-        bt.logging.debug(f"Not Blacklisting recognized hotkey {synapse.dendrite.hotkey}")
-        return False, "Hotkey recognized!"
+            # Check if the hotkey is provided
+            if not synapse.dendrite.hotkey:
+                return True, "Hotkey not provided"
+
+            # Check if the hotkey is recognized
+            if synapse.dendrite.hotkey not in self.metagraph.hotkeys:
+                bt.logging.warning(f"Blacklisting unrecognized hotkey {synapse.dendrite.hotkey}")
+                return True, "Unrecognized hotkey"
+
+            # Check if the hotkey is a validator
+            uid = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
+            if not self.metagraph.validator_permit[uid]:
+                bt.logging.warning(
+                    f"Blacklisting a request from non-validator hotkey {synapse.dendrite.hotkey}"
+                )
+                return True, "Non-validator hotkey"
+
+            stake = self.metagraph.S[uid].item()
+            bt.logging.debug(f"Validator {synapse.dendrite.hotkey} has stake {stake}")
+            if stake < VAL_MIN_STAKE:
+                bt.logging.warning(
+                    f"Blacklisting a request from hotkey {synapse.dendrite.hotkey} with stake {stake}"
+                )
+                return True, "Low stake"
+
+            bt.logging.debug(f"Not Blacklisting recognized hotkey {synapse.dendrite.hotkey}")
+            return False, "Hotkey recognized!"
+        except Exception as e:
+            bt.logging.error(f"Failed to validate hotkey {synapse.dendrite.hotkey}: {e}")
+            return True, "Failed to validate hotkey"
 
     async def priority(self, synapse: infinite_games.protocol.EventPredictionSynapse) -> float:
         """

@@ -3,6 +3,7 @@
 alias gaa="git add ."
 alias gcm="git commit -m"
 alias gacm="git add . && git commit -m"
+alias regen_test_wallet="bash .devcontainer/regen_test_wallet.sh"
 
 export PATH="/usr/local/bin:$PATH"
 

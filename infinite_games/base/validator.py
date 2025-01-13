@@ -35,7 +35,7 @@ import requests
 import torch
 import wandb
 
-from infinite_games import __version__
+from infinite_games import __deprecated_version__
 from infinite_games.base.neuron import BaseNeuron
 from infinite_games.events.base import CLUSTER_EPOCH_2024
 
@@ -105,7 +105,7 @@ class BaseValidatorNeuron(BaseNeuron):
                 config={
                     "hotkey": self.wallet.hotkey.ss58_address,
                 },
-                name=f"validator-{self.uid}-{__version__}",
+                name=f"validator-{self.uid}-{__deprecated_version__}",
                 resume=None,
                 dir=self.config.neuron.full_path,
                 reinit=True,

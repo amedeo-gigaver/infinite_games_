@@ -1,0 +1,54 @@
+name: Update CI cache
+
+on:
+  push:
+    branches:
+      - "develop"
+      - "stage"
+      - "main"
+
+jobs:
+  update-cache:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Python
+        id: setup-python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Extract Python minor version
+        run: |
+          VERSION=${{ steps.setup-python.outputs.python-version }}
+          VERSION_FORMATTED=$(echo $VERSION | cut -d '.' -f 1,2)
+
+          echo "python-version=${{ steps.setup-python.outputs.python-version }}"
+          echo "python_version_formatted=$VERSION_FORMATTED" >> $GITHUB_ENV
+          echo "Formatted Python minor version: $VERSION_FORMATTED"
+
+      - name: Check cache hit
+        id: cache-check
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            /opt/hostedtoolcache/Python/${{ steps.setup-python.outputs.python-version }}/x64/lib/python${{ env.python_version_formatted }}/site-packages
+            /opt/hostedtoolcache/Python/${{ steps.setup-python.outputs.python-version }}/x64/bin
+          key: ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/requirements*.txt') }}
+          lookup-only: true
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        if: steps.cache-check.outputs.cache-hit != 'true'
+        with:
+          path: |
+            /opt/hostedtoolcache/Python/${{ steps.setup-python.outputs.python-version }}/x64/lib/python${{ env.python_version_formatted }}/site-packages
+            /opt/hostedtoolcache/Python/${{ steps.setup-python.outputs.python-version }}/x64/bin
+          key: ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/requirements*.txt') }}
+
+      - name: Install dependencies
+        if: steps.cache-check.outputs.cache-hit != 'true'
+        run: pip install -r requirements_dev.txt

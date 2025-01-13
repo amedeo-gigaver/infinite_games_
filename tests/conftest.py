@@ -91,7 +91,7 @@ def disable_event_updates():
 def mock_miner_reg_time(monkeypatch):
     reg_time = "2024-01-01 00:00"
     monkeypatch.setattr(
-        "neurons.validator.get_miner_data_by_uid",
+        "neurons.deprecated_validator.get_miner_data_by_uid",
         lambda validator, _: {"registered_date": reg_time},
     )
 

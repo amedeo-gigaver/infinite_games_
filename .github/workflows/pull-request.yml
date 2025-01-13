@@ -1,0 +1,71 @@
+name: Pull Request
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pull-request:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Python
+        id: setup-python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Extract Python minor version
+        run: |
+          VERSION=${{ steps.setup-python.outputs.python-version }}
+          VERSION_FORMATTED=$(echo $VERSION | cut -d '.' -f 1,2)
+
+          echo "python-version=${{ steps.setup-python.outputs.python-version }}"
+          echo "python_version_formatted=$VERSION_FORMATTED" >> $GITHUB_ENV
+          echo "Formatted Python minor version: $VERSION_FORMATTED"
+
+      - name: Restore cached dependencies
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            /opt/hostedtoolcache/Python/${{ steps.setup-python.outputs.python-version }}/x64/lib/python${{ env.python_version_formatted }}/site-packages
+            /opt/hostedtoolcache/Python/${{ steps.setup-python.outputs.python-version }}/x64/bin
+          key: ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-
+
+      - name: Install packages
+        run: pip install -r requirements_dev.txt
+
+      - name: Format
+        run: |
+          # Imports order
+          echo "::notice::Imports order"
+          isort --check-only --diff .
+
+          # Code format
+          echo "::notice::Code format"
+          black --check .
+
+          # requirements.txt are sorted
+          echo "::notice::requirements.txt are sorted"
+          diff <(sort requirements.txt) requirements.txt
+
+          # requirements_dev.txt are sorted
+          echo "::notice::requirements_dev.txt are sorted"
+          diff <(sort requirements_dev.txt) requirements_dev.txt
+
+      - name: Lint
+        run: |
+          flake8 ./neurons/validator
+
+      - name: Tests
+        run: |
+          coverage run --source=./ --omit="tests/*,*/tests/*" -m pytest -v
+          coverage report -m

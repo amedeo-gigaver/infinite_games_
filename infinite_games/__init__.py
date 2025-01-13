@@ -15,11 +15,13 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-__version__ = "1.3.3"
+__deprecated_version__ = "1.3.3"
 
-version_split = __version__.split(".")
-__spec_version__ = (
-    (1000 * int(version_split[0])) + (10 * int(version_split[1])) + (1 * int(version_split[2]))
+deprecated_version_split = __deprecated_version__.split(".")
+__deprecated_spec_version__ = (
+    (1000 * int(deprecated_version_split[0]))
+    + (10 * int(deprecated_version_split[1]))
+    + (1 * int(deprecated_version_split[2]))
 )
 
 # Import all submodules.

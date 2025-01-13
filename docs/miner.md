@@ -3,21 +3,13 @@
 
 You will be receiving data in the form defined in `infinite_games/events/base.py` and will only need to complete the `probability` entry. 
 
-The current scoring mechanism is described [here](https://hackmd.io/@nielsma/S1sB8xO_C). The time-series component is not applied to Azuro events since in their case the interval between event generation and event resolution is usually shorter than a few hours.
+The current scoring mechanism is described [here](https://hackmd.io/@nielsma/S1sB8xO_C). 
 
-A key point for the first iteration of the subnet is that you will be receiving requests from validators every minute. **You do not have to recalculate your prediction every time**. Our baseline miners are implementing a caching system that allows for a recalculation schedule. This is particularly important if you use a base model like GPT4 that might be expensive.
+You will be receiving requests from validators every minute. You do not have to recalculate your prediction every time. Our baseline miners are implementing a caching system that allows for a recalculation schedule. This is particularly important if you use a base model like GPT4 that might be expensive.
 
 ## Baseline Miner
 
 We are constantly working on improving the baseline miners, especially with regards to new categories of synthetic events being added to the subnet.
-
-1. Baseline Miner 1
-
-This miner pulls the latest price from Polymarket, which corresponds to the current aggregate prediction on Polymarket, and sends it to the validators. Similarly, it pull the latest odds for a given Azuro event and sends the inverse (which is the corresponding probability) to validators.
-
-code: run the miner without setting up an OpenAI key
-
-2. Baseline Miner 2 (LLM integration)
 
 We integrate the LLM prompting [pipeline](https://github.com/dannyallover/llm_forecasting.git) with news retrieval developed by the authors of the forecasting LLM paper quoted in the readme. In the current form it only uses [Google News](https://news.google.com/home?hl=en-US&gl=US&ceid=US:en) for news retrieval while the original model from the article used 4 other different sources (Newscatcher, Newsdata.io, Aylien, NewsAPI.org).
 This pipeline can work with different base models.
@@ -73,12 +65,6 @@ This first set of events will have the following structure:
 
 Miners will have to retrieve protest data relevant to each of the countries listed above in order to improve their predictions. 
 
-## Cutoff
-
-**Polymarket** : 24 hours before the resolution date.
-
-**Azuro** : the start date of the sporting event.
-
 # Miner strategy 
 
 A reference providing a **baseline miner** strategy is the article ["Approaching Human Level Forecasting with Language Models"](https://arxiv.org/html/2402.18563v1?s=35) ([1]). The authors fine-tune an LLM to generate predictions on binary events (including the ones listed on Polymarket) which nears the performance of human forecasters when submitting a forecast for each prediction, and which beats human forecasters in a setting where the LLM can choose to give a prediction or not based on its confidence.
@@ -88,7 +74,7 @@ The authors released a version of the code they used to build the LLM they descr
 
 # System requirements
 
-The computational requirements for a miner will depend significantly on the frequency at which they need to send predictions to be competitive since the base model we consider consists of a set of LLM sub-modules that each need to perform computations. Miners will also need to eventually continually provide new data to their models. Initially with 20-30 events settling per day we estimate miners to require between 16 and 36GB of RAM. We are in the process of testing the computational requirements further. 
+The computational requirements for a miner will depend significantly on the frequency at which they need to send predictions to be competitive since the base model we consider consists of a set of LLM sub-modules that each need to perform computations. Miners will also need to eventually continually provide new data to their models.
 
 A significant cost in the case of the repo referenced above is the cost of using e.g the OpenAI API as well as the cost of retrieving news data. Every time a prediction is produced, a base model is used to generate various prompts. A miner could circumvent that by using a local model or by using the output of the [subnet 18](https://github.com/corcel-api/cortex.t.git). 
 News retrieval other than Google News is done through news provider like https://www.newscatcherapi.com/. They are most often behind a paywall.

@@ -1,0 +1,137 @@
+name: Deploy to STAGE Server
+
+on:
+  push:
+    branches:
+      - stage
+
+jobs:
+
+  build-push-validator:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Build and push validator image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: gigacodehub/validator:stage-latest
+
+  build-push-miner:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Build and push miner image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: gigacodehub/miner:stage-latest
+
+  deploy_validator:
+    needs: [build-push-validator]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y python3-pip
+
+      - name: Create .ssh directory
+        run: mkdir -p ~/.ssh
+
+      - name: Deploy to server
+        env:
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+          #TARGET_MONITOR_HOTKEY: ${{ secrets.TARGET_MONITOR_HOTKEY }}
+          #GRAFANA_API_KEY: ${{ secrets.GRAFANA_API_KEY }}
+        run: |
+            ssh-keyscan -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_STAGE_VALI_IP }} >> ~/.ssh/known_hosts
+            ssh-keyscan github.com >> ~/.ssh/known_hosts
+            ssh-agent -a $SSH_AUTH_SOCK > /dev/null
+            ssh-add - <<< "${{ secrets.SSH_STAGE_PRIVATE_KEY }}"
+            ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_STAGE_VALI_IP }} -p ${{ secrets.SERVER_PORT }} << 'EOF'
+            docker-compose -f docker-compose.stagevali.yml down
+            docker rmi gigacodehub/validator:stage-latest
+            docker-compose -f docker-compose.stagevali.yml up -d
+            EOF
+
+  deploy_miners:
+    needs: [build-push-miner]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y python3-pip
+
+      - name: Create .ssh directory
+        run: mkdir -p ~/.ssh
+
+      - name: Deploy to server
+        env:
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+        run: |
+            ssh-keyscan -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_STAGE_MINER_IP }} >> ~/.ssh/known_hosts
+            ssh-keyscan github.com >> ~/.ssh/known_hosts
+            ssh-agent -a $SSH_AUTH_SOCK > /dev/null
+            ssh-add - <<< "${{ secrets.SSH_PRIVATE_KEY }}"
+            ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_STAGE_MINER_IP }} -p ${{ secrets.SERVER_PORT }} << 'EOF'
+            docker-compose -f docker-compose.miner.yml down
+            docker rmi gigacodehub/miner:stage-latest
+            docker-compose -f docker-compose.miner.yml up -d
+            EOF
+      - name: Send success message to Discord
+        if: success()
+        run: |
+          WEBHOOK_URL="${{ secrets.DISCORD_DEPLOY }}"
+          MESSAGE="Deploy to validator/miner server STAGE complete"
+          curl -H "Content-Type: application/json" \
+          -d "{\"content\": \"$MESSAGE\"}" \
+          $WEBHOOK_URL
+
+      - name: Send failure message to Discord
+        if: failure()
+        run: |
+          WEBHOOK_URL="${{ secrets.DISCORD_DEPLOY }}"
+          MESSAGE="Deploy to validator/miner server STAGE failed"
+          curl -H "Content-Type: application/json" \
+          -d "{\"content\": \"$MESSAGE\"}" \
+          $WEBHOOK_URL

@@ -22,19 +22,18 @@
                         "source.organizeImports": true
                     }
                 },
-                "python.pythonPath": "/usr/local/bin/python3.10"
+                "python.pythonPath": "/usr/local/bin/python3.10",
+                "python.languageServer": "Pylance"
             },
             "extensions": [
                 "streetsidesoftware.code-spell-checker",
                 "ms-python.python",
+                "ms-python.vscode-pylance",
                 "mechatroner.rainbow-csv",
-                "sleistner.vscode-fileutils",
-                "ms-toolsai.jupyter",
                 "GitHub.copilot",
                 "GitHub.copilot-chat",
                 "ms-azuretools.vscode-docker",
                 "timonwong.shellcheck",
-                "EditorConfig.EditorConfig",
                 "ms-python.black-formatter",
                 "ms-python.isort",
                 "ms-python.flake8",

@@ -31,7 +31,7 @@
 ##  Introduction
 
 
-We incentivize the prediction of future events. The prediction space is based on binary future events such as the one listed on [Polymarket](https://polymarket.com/) and on [Azuro](https://azuro.org/). We are always actively expanding to new markets and providers. We are focused on *judgemental forecasting* rather than *statistical forecasting*. We hence expect the models used by miners to be LLMs. 
+We incentivize the prediction of future events. The prediction space is based on binary future events such as the ones listed on [Polymarket](https://polymarket.com/). We are always actively expanding to new data providers. Most of this data is then processed by an LLM pipeline which handles the event generation. We are focused on *judgemental forecasting* rather than *statistical forecasting*. We hence expect the models used by miners to be LLMs. 
 
 ### High-level mechanism
 
@@ -59,43 +59,33 @@ In the long term, a validator could provide paid economic forecasts or more gene
 
 ## Miners 
 
-Miners compete by sending to the validators a dictionary identifying an event $E$ with their estimation of the probability $p$ that $E$ is realized. For example, $E$ could be *SBF is sentenced to life*. In the case of Polymarket, an event identifier is a [Polymarket condition id](https://docs.polymarket.com/#overview-8). 
+Miners compete by sending to the validators for each binary event $E$ their estimation of the probability $p$ that $E$ is realized. For example, $E$ could be *o3 is released to the public by January 15th 2025*.
 
 
 ### Miner strategy 
 
 A reference providing a **baseline miner** strategy is the article ["Approaching Human Level Forecasting with Langage Models"](https://arxiv.org/html/2402.18563v1?s=35) ([1]). The authors fine-tune an LLM to generate predictions on binary events (including the ones listed on Polymarket) which nears the performance of human forecasters when submitting a forecast for each prediction, and which beats human forecasters in a setting where the LLM can choose to give a prediction or not based on its confidence.
 
-According to the article, the performance of LLMs likely depends significantly on the amount of data they can retrieve for a given prediction. In the study, this performance was likely limited by the finite amount of data one can extract from prediction markets. If our subnet is able to continually produce new synthetic data miners could be able to beat the SoA (average Brier score of 0.179).
+According to the article, the performance of forecasting LLMs depends significantly on the amount of data one can retrieve for a given prediction or event (for example prediction market data). If our subnet is able to continually produce new synthetic data, miners should be able to beat the SoA.
 
 
 ## Validators
 
-Validators record the miners' predictions and score them once the events settle. At each event settlement, a score is added to the moving average of the miner's score. This simple model ensures that all validators score the miners at roughly the same time. Importantly, we implement a **cutoff** for the submission time of a prediction. The cutoff is currently set at 24 hours for Polymarket events and at the start of the relevant sporting event on Azuro (think kick-off of a soccer match). The cutoff is needed since as the event nears resolution the probability of the true outcome tends to one.
+Validators record the miners' predictions and score them once the events settle. At each event settlement, a score is added to the moving average of the miner's score. This simple model ensures that all validators score the miners at roughly the same time. We implement a **cutoff** for the submission time of a prediction. The cutoff is set at 24 hours before the resolution date for most events.
 
 ## Scoring rule
-*We are currently using model 2*
 
-Denote by $S(p_i, o_i)$ the quadratic scoring rule (the Brier score) for a prediction $p_i$ of a binary event $E_i$ and where $o_i$ is $1$ if $E_i$ is realized and $0$ otherwise. With a renormalization we have that $S(p_i, 1)= 1- (1-p_i)^2$ if $o_i$ is $1$ and $S(p_i,0)=1-p_i^2$ if $o_i$ is $0$. A quadratic scoring rule is strictly proper i.e it strictly incentivizes miners to report their true prediction. 
-
-### model 1
-
-The validators directly use a **quadratic scoring rule** on the miners' predictions. If the miner predicted that $E_i$ be realized with probability $p_i$, upon settlement of the outcome the validator scores the miner by adding $S(p_i, o_i)$ to their moving average of the miner's score.
-
-We give miners a score of $0$ on the events for which they did not submit a prediction.
-
-### model 2
+Denote by $S(p_i, o_i)$ the Brier score of a prediction $p_i$ on the binary event $E_i$ and where $o_i$ is $1$ if $E_i$ is realized and $0$ otherwise. We have that $S(p_i, 1)= 1- (1-p_i)^2$ if $o_i$ is $1$ and $S(p_i,0)=1-p_i^2$ if $o_i$ is $0$. The Brier score is strictly proper i.e it strictly incentivizes miners to report their true prediction. 
 
 The validator stores **the time series of the miner's predictions** and computes the Brier score of each element of the time series. It hence obtains a new time series of Brier scores. A number $n$ of intervals is set between the issues date and the resolution date. The validator then computes a **weighted average of the Brier scores**, where the weight is exponentially decreasing with time, in interval $k$ it has value $exp(-\frac{n}{k} +1)$ where $k$ starts at $n$ and decreases to $1$.
 
 The final score is a linear combination of the weighted average and of a linear component that depends on how good is the miner compared to other miners.
 
-This is described in details [here](https://hackmd.io/@nielsma/S1sB8xO_C).
+This is described in details [here](https://hackmd.io/@nielsma/S1sB8xO_C). We give miners a score of $0$ on the events for which they did not submit a prediction.
 
 
+<!--
 ### model 3
-
-
 We implement a **sequentially shared quadratic scoring rule**. This allows us crucially to aggregate information as well as to score $0$ miners that do not bring new information to the market.
 The scoring rule functions by scoring each miner relatively to the previous one. The score of the miner $j$ is then $S_j = S(p_j, o_i) - S(p_{j-1}, o_i)$ where $p_{j-1}$ is the submission of the previous miner. Importantly this payoff can be negative, therefore in practice when aggregating the scores of a miner we add a $\max(-,0)$ operation. 
 
@@ -106,8 +96,7 @@ $$\frac{1}{N} \sum_j S_j$$
 where $N$ is the number of events that the validator registered as settled during the tempo.
 
 A simpler version of this model is, instead of paying the miner for their delta to the previous prediction, pay them for their delta to the Polymarket probability at the submission time i.e $S(p_j, o_i) - S(\text{price on polymarket at t}, o_i)$ where $p_j$ is submitted at $t$.
-
-We also want to incorporate a progress or stability component in the scoring rule, as well as not introduce a latency game among miners to submit their predictions (as incentivized by the sequential scoring rule). 
+-->
 
 <!--
 ## Incentive compability
@@ -116,23 +105,25 @@ See [here](docs/mechanism.md) for a discussion of our mechanism. -->
 
 ## Roadmap
 
-- Scoring with exponentially decreasing weights until settlement date and linear differentiation mechanism - July 25th 
-- Synthetic event generation with central resolution using ACLED data - early August
-- Scoring with exponential differentiation mechanism, new entropy scoring component and new improvement rate scoring component - August/September
-- Comprehensive and granular analytics - September
-- Synthetic event generation from news data using an LLM - September
-- Synthetic event generation with central resolution with various API modules: elections API, court rulings - data, space flights 
-- Mining competition in partnership with Crunch DAO
-- Synthetic event generation with UMA resolution - human verifiers resolve our events through the OOv2 
-- Aggregation of miners’ predictions - through simple cutoff for benchmark events 
-- Synthetic event generation with trustless resolution using UMA - we use the UMA Data Asserter framework for our event resolutions that then go through a challenge period
-- More advanced aggregation mechanism based on sequential scoring 
 
-Other items on our roadmap involve:
-- commit-reveal on the miners' predictions
-- make the prediction framework more LLM specific and create mechanisms that explicitely generate data for the fine-tuning of prediction focused LLMs
-- consider other prediction markets such as Metaculus and Manifold (mostly as benchmark events)
-- using Reuters or WSJ headlines for event generation
+-[x] Scoring with exponentially decreasing weights until settlement date and linear differentiation mechanism 
+-[x] Synthetic event generation with central resolution using ACLED data 
+-[x] Scoring with exponential differentiation mechanism 
+-[x] Comprehensive and granular analytics 
+-[x] Synthetic event generation with UMA resolution - human verifiers resolve our events through the OOv2 
+-[x] Synthetic event generation from news data using an LLM 
+
+-[ ] Validator v2 - modular and much higher throughput 
+-[ ] Scoring v2 (batches, peer score)
+-[ ] Exposing the silicon crowd predictions 
+-[ ] Decentralisation of event generation and validator dynamic desirability (inspired from SN13)
+
+-[ ] Trustless event resolution using UMA - leveraging the data asserter framework
+-[ ] Advanced aggregation mechanism based on sequential scoring
+-[ ] Commit-reveal on the miners' predictions
+-[ ] Scoring a reasoning component
+-[ ] Data generation for iterative fine-tuning of prediction focused LLMs
+
 
 <!-- We first aim at adjusting the scoring rule by updating to a variation of the *model 2* described above. We will likely implement several other updates in order to make the mechanism more robust. One of them could be a commit-reveal step for the predictions submitted by miners. Some updates may be due to experimental data.
 

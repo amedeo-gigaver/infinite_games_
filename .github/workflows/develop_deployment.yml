@@ -1,0 +1,170 @@
+name: Deploy to DEVELOP Server
+
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+
+  build-push-validator:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Build and push validator image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: gigacodehub/validator:test-latest
+
+  build-push-miner:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Build and push miner image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: gigacodehub/miner:test-latest
+
+  deploy_validator:
+    needs: [build-push-validator]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y python3-pip
+
+      - name: Create .ssh directory
+        run: mkdir -p ~/.ssh
+
+      - name: Deploy to server
+        env:
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+          #TARGET_MONITOR_HOTKEY: ${{ secrets.TARGET_MONITOR_HOTKEY }}
+          #GRAFANA_API_KEY: ${{ secrets.GRAFANA_API_KEY }}
+        run: |
+            ssh-keyscan -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_STAGE_VALI_IP }} >> ~/.ssh/known_hosts
+            ssh-keyscan github.com >> ~/.ssh/known_hosts
+            ssh-agent -a $SSH_AUTH_SOCK > /dev/null
+            ssh-add - <<< "${{ secrets.SSH_STAGE_PRIVATE_KEY }}"
+            ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_STAGE_VALI_IP }} -p ${{ secrets.SERVER_PORT }} << 'EOF'
+            docker-compose -f docker-compose.vali.yml down
+            docker rmi gigacodehub/validator:test-latest
+            docker-compose -f docker-compose.vali.yml up -d
+            EOF
+
+  deploy_miner:
+    timeout-minutes: 30
+    needs: [build-push-miner]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y python3-pip openssh-client
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          touch ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        env:
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+        run: |
+          cat > ~/.ssh/config << EOF
+          Host deploy_host
+            HostName ${{ secrets.SERVER_STAGE_MINER_IP }}
+            Port ${{ secrets.SERVER_PORT }}
+            User root
+            StrictHostKeyChecking no
+            UserKnownHostsFile ~/.ssh/known_hosts
+            ServerAliveInterval 60
+            ServerAliveCountMax 10
+            ConnectTimeout 180
+            TCPKeepAlive yes
+          EOF
+          chmod 600 ~/.ssh/config
+
+          ssh-keyscan -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_STAGE_MINER_IP }} >> ~/.ssh/known_hosts
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          ssh-agent -a $SSH_AUTH_SOCK > /dev/null
+          ssh-add - <<< "${{ secrets.SSH_PRIVATE_KEY }}"
+
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          until ssh deploy_host << 'EOF'
+            docker-compose -f docker-compose.develop-miner.yml down || true
+            docker rmi gigacodehub/miner:test-latest || true
+            docker pull gigacodehub/miner:test-latest
+            docker-compose -f docker-compose.develop-miner.yml up -d
+            docker ps | grep miner
+          EOF
+          do
+            RETRY_COUNT=$((RETRY_COUNT+1))
+            if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+              echo "Failed after $MAX_RETRIES attempts"
+              exit 1
+            fi
+            echo "Connection lost. Retry attempt $RETRY_COUNT of $MAX_RETRIES..."
+            sleep 30
+          done
+
+      - name: Send success message to Discord
+        if: success()
+        run: |
+          WEBHOOK_URL="${{ secrets.DISCORD_DEPLOY }}"
+          MESSAGE="Deploy to validator/miner server DEVELOP complete"
+          curl -H "Content-Type: application/json" \
+          -d "{\"content\": \"$MESSAGE\"}" \
+          $WEBHOOK_URL
+
+      - name: Send failure message to Discord
+        if: failure()
+        run: |
+          WEBHOOK_URL="${{ secrets.DISCORD_DEPLOY }}"
+          MESSAGE="Deploy to validator/miner server DEVELOP failed"
+          curl -H "Content-Type: application/json" \
+          -d "{\"content\": \"$MESSAGE\"}" \
+          $WEBHOOK_URL

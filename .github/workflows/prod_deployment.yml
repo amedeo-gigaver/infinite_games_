@@ -1,0 +1,63 @@
+name: Deploy to PROD Server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y python3-pip
+
+      - name: Create .ssh directory
+        run: mkdir -p ~/.ssh
+
+      - name: Deploy to server
+        env:
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+          TARGET_MONITOR_HOTKEY: ${{ secrets.TARGET_MONITOR_HOTKEY }}
+          GRAFANA_API_KEY: ${{ secrets.GRAFANA_API_KEY }}
+        run: |
+            ssh-keyscan -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_PROD_VALIDATOR_IP }} >> ~/.ssh/known_hosts
+            ssh-keyscan github.com >> ~/.ssh/known_hosts
+            ssh-agent -a $SSH_AUTH_SOCK > /dev/null
+            ssh-add - <<< "${{ secrets.SSH_STAGE_PRIVATE_KEY }}"
+            ssh -o StrictHostKeyChecking=no root@${{ secrets.SERVER_PROD_VALIDATOR_IP }} -p ${{ secrets.SERVER_PORT }} << 'EOF'
+            cd /root/if-games-validator
+            git pull
+            source venv/bin/activate
+            pip install -r requirements.txt
+            export USE_TORCH=1
+            export GRAFANA_API_KEY=${{ secrets.GRAFANA_API_KEY }}
+            export TARGET_MONITOR_HOTKEY=${{ secrets.TARGET_MONITOR_HOTKEY }}
+            export WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}
+            pm2 delete validator
+            cp validator.db /root/validator-db/validator1.db
+            pm2 start neurons/validator.py --name validator --interpreter python3 -- --netuid 6 --subtensor.network finney --wallet.name ifkey --wallet.hotkey ifhkey --logging.debug
+            cd /root/validator-db
+            python3 downloadhg.py
+            EOF
+      - name: Send success message to Discord
+        if: success()
+        run: |
+          WEBHOOK_URL="${{ secrets.DISCORD_DEPLOY }}"
+          MESSAGE="Deploy to validator/miner server PROD complete"
+          curl -H "Content-Type: application/json" \
+          -d "{\"content\": \"$MESSAGE\"}" \
+          $WEBHOOK_URL
+
+      - name: Send failure message to Discord
+        if: failure()
+        run: |
+          WEBHOOK_URL="${{ secrets.DISCORD_DEPLOY }}"
+          MESSAGE="Deploy to validator/miner server PROD failed"
+          curl -H "Content-Type: application/json" \
+          -d "{\"content\": \"$MESSAGE\"}" \
+          $WEBHOOK_URL
