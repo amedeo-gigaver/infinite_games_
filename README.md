@@ -106,23 +106,23 @@ See [here](docs/mechanism.md) for a discussion of our mechanism. -->
 ## Roadmap
 
 
--[x] Scoring with exponentially decreasing weights until settlement date and linear differentiation mechanism 
--[x] Synthetic event generation with central resolution using ACLED data 
--[x] Scoring with exponential differentiation mechanism 
--[x] Comprehensive and granular analytics 
--[x] Synthetic event generation with UMA resolution - human verifiers resolve our events through the OOv2 
--[x] Synthetic event generation from news data using an LLM 
+- [x] Scoring with exponentially decreasing weights until settlement date and linear differentiation mechanism 
+- [x] Synthetic event generation with central resolution using ACLED data 
+- [x] Scoring with exponential differentiation mechanism 
+- [x] Comprehensive and granular analytics 
+- [x] Synthetic event generation with UMA resolution - human verifiers resolve our events through the OOv2 
+- [x] Synthetic event generation from news data using an LLM 
 
--[ ] Validator v2 - modular and much higher throughput 
--[ ] Scoring v2 (batches, peer score)
--[ ] Exposing the silicon crowd predictions 
--[ ] Decentralisation of event generation and validator dynamic desirability (inspired from SN13)
+- [ ] Validator v2 - modular and much higher throughput 
+- [ ] Scoring v2 (batches, peer score)
+- [ ] Exposing the silicon crowd predictions 
+- [ ] Decentralisation of event generation and validator dynamic desirability (inspired from SN13)
 
--[ ] Trustless event resolution using UMA - leveraging the data asserter framework
--[ ] Advanced aggregation mechanism based on sequential scoring
--[ ] Commit-reveal on the miners' predictions
--[ ] Scoring a reasoning component
--[ ] Data generation for iterative fine-tuning of prediction focused LLMs
+- [ ] Trustless event resolution using UMA - leveraging the data asserter framework
+- [ ] Advanced aggregation mechanism based on sequential scoring
+- [ ] Commit-reveal on the miners' predictions
+- [ ] Scoring a reasoning component
+- [ ] Data generation for iterative fine-tuning of prediction focused LLMs
 
 
 <!-- We first aim at adjusting the scoring rule by updating to a variation of the *model 2* described above. We will likely implement several other updates in order to make the mechanism more robust. One of them could be a commit-reveal step for the predictions submitted by miners. Some updates may be due to experimental data.
